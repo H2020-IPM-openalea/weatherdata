@@ -1,0 +1,1 @@
+Weather package allows to compute different variables in different formats from a meteo data file using simple models.
