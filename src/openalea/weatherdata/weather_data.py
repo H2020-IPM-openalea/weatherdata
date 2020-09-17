@@ -19,7 +19,10 @@ class WeatherData(object):
     def __init__(self, name):
         if name not in wrappers:
             raise ValueError('unknown source: ' + name)
-        self.name=name
-        self.get_data = eval(name + '.get_data')
-        self.get_meta = eval(name + '.get_meta')
+        self.name = name
+        self._get_data = eval(name + '.get_data')
+
+    def get_data(self, station_id, daterange, label):
+        self.data, self.meta_vars, self.meta = self._get_data(station_id, daterange, label)
+
 
