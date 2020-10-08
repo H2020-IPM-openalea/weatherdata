@@ -25,3 +25,9 @@ def get_data(station_id, daterange=pandas.date_range('2020-03-06T10:00:00', '202
     return df, meta_vars, {k: response['locationWeatherData'][0][k] for k in ('latitude', 'longitude', 'altitude')}
 
 
+    timeStart = daterange[0].strftime('%Y-%m-%dT%H:%M:%S%z')
+    timeEnd = daterange[-1].strftime('%Y-%m-%dT%H:%M:%S%z')
+    interval
+    if daterange.tz._tzname == 'UTC':
+        timeStart +='Z'
+        timeEnd += 'Z'
