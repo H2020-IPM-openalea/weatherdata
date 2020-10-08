@@ -1,4 +1,4 @@
-from openalea.weatherdata.data import  ipm_getdata_request, ipm_get_weatherparameter
+from weatherdata.data import  ipm_getdata_request, ipm_get_weatherparameter
 import pandas
 
 
