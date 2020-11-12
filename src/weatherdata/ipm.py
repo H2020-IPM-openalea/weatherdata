@@ -11,30 +11,31 @@ from agroservices import IPM
 import pandas
 import datetime
 
-ipm = IPM()
-ressource_ids = {'Met Norway Locationforecast': 'yr',
-                 'Finnish Meteorological Institute measured data': 'fmi',
-                 'FMI weather forecasts': 'fmi_forecasts',
-                 'Landbruksmeteorologisk tjeneste': 'lmt',
-                 'MeteoBot API': 'metobot',
-                 'Fruitweb': 'fw',
-                 'Metos':'metos'}
+#ipm = IPM()
+# ressource_ids = {'Met Norway Locationforecast': 'yr',
+#                  'Finnish Meteorological Institute measured data': 'fmi',
+#                  'FMI weather forecasts': 'fmi_forecasts',
+#                  'Landbruksmeteorologisk tjeneste': 'lmt',
+#                  'MeteoBot API': 'metobot',
+#                  'Fruitweb': 'fw',
+#                  'Metos':'metos'}
 
-weather_adapter = {'fmi': ipm.get_weatheradapter_fmi,
-                   'yr': ipm.get_weatheradapter_yr,
-                   'lmt':'',
-                   'meteobot':'',
-                   'fw':'',
-                   'metos':''
-                    }
+# weather_adapter = {'fmi': ipm.get_weatheradapter_fmi,
+#                    'yr': ipm.get_weatheradapter_yr,
+#                    'lmt':'',
+#                    'meteobot':'',
+#                    'fw':'',
+#                    'metos':''
+#                     }
 
 class WeatherDataSource(object):
 
     def __init__(self, name):
-        self.id = ressource_ids[name]
+        #self.id = ressource_ids[name]
         self.name = name
         self.ipm = IPM()
-        self.ws = weather_adapter[ressource_ids.get(name)]
+        #self.ws = weather_adapter[ressource_ids.get(name)]
+
 
     def get_station_ids(self):
         rep = self.ipm.get_weatherdatasource()  
@@ -59,7 +60,7 @@ class WeatherDataSource(object):
         data = data[["name","id","coordinates"]]
         return data
 
-    def list_available_parameters(self):
+    def get_list_available_parameters(self):
         """
         Get list of available parameters for ressource
 
@@ -80,7 +81,7 @@ class WeatherDataSource(object):
         return parameters
         
          
-    def get_data(self,parameters, station_id, daterange):
+    def get_data(self,parameters=[1002,3002], station_id=101104, daterange=pandas.date_range('2020-06-12T00:00:00','2020-07-03T00:00:00',freq='H',tz="UTC")):
         """
         Get weather data from weatherdataressource
 
@@ -108,7 +109,9 @@ class WeatherDataSource(object):
         
         interval = pandas.Timedelta(daterange.freq).seconds
 
-        response=self.ws(
+        response=self.ipm.get_weatheradapter(
+            endpoint='/weatheradapter/fmi/',
+            credentials=None,
             weatherStationId=station_id, 
             timeStart=timeStart, 
             timeEnd=timeEnd, 
@@ -128,7 +131,7 @@ class WeatherDataHub(object):
     """
 
     def __init__(self):
-        self.ws = IPM()
+        self.ipm = IPM()
 
     def list_ressources(self):
         """
@@ -141,28 +144,21 @@ class WeatherDataHub(object):
         ---------
             dictionnary with name and description of available weatherdatasource on IPM service
         """
-        rep = self.ws.get_weatherdatasource()
+        rep = self.ipm.get_weatherdatasource()
         return {item['name']:item['description'] for item in rep}
-
+        
     def get_ressource(self, name):
-        rep = self.ws.get_weatherdatasource()
+        """
+        Parameters:
+        -----------
+            name: name of weatherdatasource (available in listressource)
+            
+        Returns:
+        --------
+        """
+        rep = self.ipm.get_weatherdatasource()
         keys = [item['name'] for item in rep]
         if name in keys:
             return WeatherDataSource(name)
         else:
             raise NotImplementedError()
-
-rep = ipm.get_weatherdatasource()  
-
-values = {item['name']:item['spatial']['geoJSON']for item in rep}
-
-station_ids = dict()
-coord = dict()
-for names in values:
-    if 'features' in values[names]:
-        station_ids[names]=[values[names]['features'][item]['properties'] for item in range(len(values[names]['features']))]
-        coord[names]=[values[names]['features'][item]['geometry'] for item in range(len(values[names]['features']))]
-
-    else:
-        station_ids[names]= 'no stations for this ressources'
-        coord[names]= 'no stations for this ressources'
