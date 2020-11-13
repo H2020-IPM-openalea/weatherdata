@@ -36,7 +36,6 @@ class WeatherDataSource(object):
         self.ipm = IPM()
         #self.ws = weather_adapter[ressource_ids.get(name)]
 
-
     def get_station_ids(self):
         rep = self.ipm.get_weatherdatasource()  
 
@@ -79,7 +78,14 @@ class WeatherDataSource(object):
            parameters = values[self.name]
 
         return parameters
+
+    def endpoint(self):
+        endpoints = self.ipm.weatheradapter_service()
+
+        if self.name in endpoints:
+            endpoint = endpoints[self.name]
         
+        return endpoint    
          
     def get_data(self,parameters=[1002,3002], station_id=101104, daterange=pandas.date_range('2020-06-12T00:00:00','2020-07-03T00:00:00',freq='H',tz="UTC")):
         """
@@ -110,7 +116,7 @@ class WeatherDataSource(object):
         interval = pandas.Timedelta(daterange.freq).seconds
 
         response=self.ipm.get_weatheradapter(
-            endpoint='/weatheradapter/fmi/',
+            endpoint=self.endpoint(),
             credentials=None,
             weatherStationId=station_id, 
             timeStart=timeStart, 
