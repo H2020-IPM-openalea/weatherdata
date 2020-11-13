@@ -80,6 +80,16 @@ class WeatherDataSource(object):
         return parameters
 
     def endpoint(self):
+        """
+        Get endpoint associate at the name parameter of WeatherDataSource
+
+        Parameters:
+        -----------
+
+        Returns:
+        --------
+            a endpoint (str) used in get_data function
+        """
         endpoints = self.ipm.weatheradapter_service()
 
         if self.name in endpoints:
