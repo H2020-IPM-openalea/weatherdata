@@ -96,8 +96,39 @@ class WeatherDataSource(object):
             endpoint = endpoints[self.name]
         
         return endpoint    
-         
-    def get_data(self,parameters=[1002,3002], station_id=101104, daterange=pandas.date_range('2020-06-12T00:00:00','2020-07-03T00:00:00',freq='H',tz="UTC")):
+    def check_forecast_endpoint(self):
+        """
+        Check if endpoint is a forecast or not
+        
+        Parameters:
+        -----------
+
+        Returns:
+        --------
+            Boolean value True if endpoint is a forecast endpoint either False
+        """
+        forcast_endpoints=self.ipm.weatheradapter_service(forecast=True).values()
+        
+        forcast=None
+        
+        if self.endpoint() in forcast_endpoints:
+            forcast=True
+        else:
+            forcast=False
+
+        return forcast 
+
+    def get_data(
+        self,
+        parameters=[1002,3002], 
+        station_id=101104, 
+        timeStart='2020-06-12',
+        timeEnd='2020-07-03',
+        timezone="UTC",
+        altitude=70,
+        longitude=14.3711,
+        latitude=67.2828,
+        ViewDataFrame=True):
         """
         Get weather data from weatherdataressource
 
@@ -107,39 +138,90 @@ class WeatherDataSource(object):
             station_id: (int) station id of weather station 
             daterange:  a pandas.date_range(start date, end date, freq='H', timezone(tz))
                         https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.date_range.html
+            
+            Only for forcast:
+            ----------------
+            altitude: (double) only for Met Norway Locationforecast WGS84 Decimal degrees
+            latitude: (double) WGS84 Decimal degrees
+            longitude: (double) WGS84 Decimal degrees
         
         Returns:
         --------
-            return a dataframe 
+            return a dataframe (ViewDataFrame=True) or json format (ViewDataFrame=False) 
         """
-        timeStart = daterange[0].strftime('%Y-%m-%dT%H:%M:%S')
-        timeEnd = daterange[-1].strftime('%Y-%m-%dT%H:%M:%S')
-        if daterange.tz._tzname == 'UTC':
-            timeStart +='Z'
-            timeEnd += 'Z'
-        else:
-            decstr = daterange[0].strftime('%z')
-            decstr = decstr[:-2] + ':' + decstr[-2:]
-            timeStart += decstr
-            timeEnd += decstr
+        forcast=self.check_forecast_endpoint()
+
+        if forcast==False:
+            
+            daterange= pandas.date_range(timeStart,timeEnd,freq='H',tz=timezone)
+
+            timeStart = daterange[0].strftime('%Y-%m-%dT%H:%M:%S')
+            timeEnd = daterange[-1].strftime('%Y-%m-%dT%H:%M:%S')
+            if daterange.tz._tzname == 'UTC':
+                timeStart +='Z'
+                timeEnd += 'Z'
+            else:
+                decstr = daterange[0].strftime('%z')
+                decstr = decstr[:-2] + ':' + decstr[-2:]
+                timeStart += decstr
+                timeEnd += decstr
         
-        interval = pandas.Timedelta(daterange.freq).seconds
+            interval = pandas.Timedelta(daterange.freq).seconds
 
-        response=self.ipm.get_weatheradapter(
-            endpoint=self.endpoint(),
-            credentials=None,
-            weatherStationId=station_id, 
-            timeStart=timeStart, 
-            timeEnd=timeEnd, 
-            interval=interval, 
-            parameters=parameters
-            )
+            response=self.ipm.get_weatheradapter(
+                endpoint=self.endpoint(),
+                credentials=None,
+                weatherStationId=station_id, 
+                timeStart=timeStart, 
+                timeEnd=timeEnd, 
+                interval=interval, 
+                parameters=parameters
+                )
+            
+            if ViewDataFrame ==True:
+                data = {str(var): vals for var, vals in zip(response['weatherParameters'], zip(*response['locationWeatherData'][0]['data']))}
+                df = pandas.DataFrame(data)
+                df.index = daterange
+                # TODO : get all what is needed for intantiating a WeatherData object (meta, units, ...) and retrun it
+                return df
+            else:
+                return response
 
-        data = {str(var): vals for var, vals in zip(response['weatherParameters'], zip(*response['locationWeatherData'][0]['data']))}
-        df = pandas.DataFrame(data)
-        df.index = daterange
-        # TODO : get all what is needed for intantiating a WeatherData object (meta, units, ...) and retrun it
-        return df
+        if forcast==True:
+            response = self.ipm.get_weatheradapter_forecast(
+                endpoint=self.endpoint(), 
+                altitude= altitude,
+                latitude=latitude,
+                longitude=longitude
+                )
+
+            daterange= pandas.date_range(
+                response['timeStart'],
+                response['timeEnd'],
+                freq='H',tz='UTC')
+            
+            timeStart = daterange[0].strftime('%Y-%m-%dT%H:%M:%S')
+            timeEnd = daterange[-1].strftime('%Y-%m-%dT%H:%M:%S')
+            if daterange.tz._tzname == 'UTC':
+                timeStart +='Z'
+                timeEnd += 'Z'
+            else:
+                decstr = daterange[0].strftime('%z')
+                decstr = decstr[:-2] + ':' + decstr[-2:]
+                timeStart += decstr
+                timeEnd += decstr
+        
+            interval = pandas.Timedelta(daterange.freq).seconds
+
+            if ViewDataFrame ==True:
+                data = {str(var): vals for var, vals in zip(response['weatherParameters'], zip(*response['locationWeatherData'][0]['data']))}
+                df = pandas.DataFrame(data)
+                df.index = daterange
+                # TODO : get all what is needed for intantiating a WeatherData object (meta, units, ...) and retrun it
+                return df
+            else:
+                return response
+
     
 # TODO : this class should inheritate from a more generic Wheather DataHub
 class WeatherDataHub(object):
@@ -167,7 +249,7 @@ class WeatherDataHub(object):
         """
         Parameters:
         -----------
-            name: name of weatherdatasource (available in listressource)
+            name: name of weatherdatasource (available in list ressource)
             
         Returns:
         --------
