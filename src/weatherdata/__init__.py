@@ -21,12 +21,6 @@ from . import ipm
 from .ipm import *
 
 
-# sub packages inside bioservices.
-
-#import mapping
-#from . import apps
-
-
 
 
 
