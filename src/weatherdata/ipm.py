@@ -7,36 +7,45 @@
 #
 # ==============================================================================
 
-from agroservices import IPM
+
 import pandas
 import datetime
 
-#ipm = IPM()
-# ressource_ids = {'Met Norway Locationforecast': 'yr',
-#                  'Finnish Meteorological Institute measured data': 'fmi',
-#                  'FMI weather forecasts': 'fmi_forecasts',
-#                  'Landbruksmeteorologisk tjeneste': 'lmt',
-#                  'MeteoBot API': 'metobot',
-#                  'Fruitweb': 'fw',
-#                  'Metos':'metos'}
-
-# weather_adapter = {'fmi': ipm.get_weatheradapter_fmi,
-#                    'yr': ipm.get_weatheradapter_yr,
-#                    'lmt':'',
-#                    'meteobot':'',
-#                    'fw':'',
-#                    'metos':''
-#                     }
+from agroservices import IPM
 
 class WeatherDataSource(object):
+    ''' 
+    Allows to query weather data resource for a given date range and return
+    meteorological data in the form of a Python data structure that keeps tracks
+    of location and units.
 
+    ..doctest::
+        >>> ws = WeatherDataSource(name='Finnish Meteorological Institute measured data')
+        >>> ws.station_ids()
+        >>> ws.parameters()
+        >>> ws.endpoint()
+        >>> ws.check_forecast_endpoint()
+        >>> ws.data(parameters=[1002,3002], station_id=101104, timeStart='2020-06-12',timeEnd='2020-07-03',timezone="UTC", altitude=70,longitude=14.3711,latitude=67.2828, ViewDataFrame=True)
+    '''
     def __init__(self, name):
-        #self.id = ressource_ids[name]
-        self.name = name
+        '''
+        WeatherDataSource parameters to access at one weather data source of IPM 
+        '''
         self.ipm = IPM()
-        #self.ws = weather_adapter[ressource_ids.get(name)]
+        self.name = name
+        
 
-    def get_station_ids(self):
+    def station_ids(self):
+        ''' 
+        Get a dataframe with station id and coordinate
+
+        Parameters:
+        -----------
+
+        Returns:
+        --------
+            a dataframe containing name, id and coordinate of station available for weather resource'''
+
         rep = self.ipm.get_weatherdatasource()  
 
         values = {item['name']:item['spatial']['geoJSON']for item in rep}
@@ -59,7 +68,7 @@ class WeatherDataSource(object):
         data = data[["name","id","coordinates"]]
         return data
 
-    def get_list_available_parameters(self):
+    def parameters(self):
         """
         Get list of available parameters for ressource
 
@@ -96,6 +105,7 @@ class WeatherDataSource(object):
             endpoint = endpoints[self.name]
         
         return endpoint    
+
     def check_forecast_endpoint(self):
         """
         Check if endpoint is a forecast or not
@@ -118,7 +128,7 @@ class WeatherDataSource(object):
 
         return forcast 
 
-    def get_data(
+    def data(
         self,
         parameters=[1002,3002], 
         station_id=101104, 
@@ -226,12 +236,23 @@ class WeatherDataSource(object):
 # TODO : this class should inheritate from a more generic Wheather DataHub
 class WeatherDataHub(object):
     """
+        Allows to access at IPM weather resources 
+        give the list of weather adapter (resources) available on IPM and allows access to weather data source
+        
+        ..doctest::
+        >>> wsh = WeatherDataHub()
+        >>> wsh.list_resources()
+        >>> wsh.get_resource(name = 'Finnish Meteorological Institute measured data')
+
     """
 
     def __init__(self):
+        """
+            Give an access to IPM interface from agroservice
+        """
         self.ipm = IPM()
 
-    def list_ressources(self):
+    def list_resources(self):
         """
         get list of ressource available in IPM services
 
@@ -253,6 +274,7 @@ class WeatherDataHub(object):
             
         Returns:
         --------
+            run weatherdatasource with the name of resource
         """
         rep = self.ipm.get_weatherdatasource()
         keys = [item['name'] for item in rep]
