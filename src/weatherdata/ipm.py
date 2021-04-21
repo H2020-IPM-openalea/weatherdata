@@ -10,6 +10,8 @@
 
 import pandas
 import datetime
+import xarray as xr
+import numpy as np
 
 from agroservices import IPM
 
@@ -138,7 +140,7 @@ class WeatherDataSource(object):
         altitude=70,
         longitude=14.3711,
         latitude=67.2828,
-        ViewDataFrame=True):
+        format='ds'):
         """
         Get weather data from weatherdataressource
 
@@ -163,20 +165,20 @@ class WeatherDataSource(object):
 
         if forcast==False:
             
-            daterange= pandas.date_range(timeStart,timeEnd,freq='H',tz=timezone)
+            times= pandas.date_range(timeStart,timeEnd,freq='H',tz=timezone)
 
-            timeStart = daterange[0].strftime('%Y-%m-%dT%H:%M:%S')
-            timeEnd = daterange[-1].strftime('%Y-%m-%dT%H:%M:%S')
-            if daterange.tz._tzname == 'UTC':
+            timeStart = times[0].strftime('%Y-%m-%dT%H:%M:%S')
+            timeEnd = times[-1].strftime('%Y-%m-%dT%H:%M:%S')
+            if times.tz._tzname == 'UTC':
                 timeStart +='Z'
                 timeEnd += 'Z'
             else:
-                decstr = daterange[0].strftime('%z')
+                decstr = times[0].strftime('%z')
                 decstr = decstr[:-2] + ':' + decstr[-2:]
                 timeStart += decstr
                 timeEnd += decstr
         
-            interval = pandas.Timedelta(daterange.freq).seconds
+            interval = pandas.Timedelta(times.freq).seconds
 
             response=self.ipm.get_weatheradapter(
                 endpoint=self.endpoint(),
@@ -188,15 +190,43 @@ class WeatherDataSource(object):
                 parameters=parameters
                 )
             
-            if ViewDataFrame ==True:
-                data = {str(var): vals for var, vals in zip(response['weatherParameters'], zip(*response['locationWeatherData'][0]['data']))}
-                df = pandas.DataFrame(data)
-                df.index = daterange
-                # TODO : get all what is needed for intantiating a WeatherData object (meta, units, ...) and retrun it
-                return df
+            if format == 'ds':
+                #data conversion in numpy array
+                data=np.array(response['locationWeatherData'][0]['data'])
+                
+                dat=[]
+                for i in range(data.shape[1]):
+                    dat.append(data[:,i].reshape(data.shape[0],1))
+                
+                # construction of dict for dataset variable
+                data_vars=dict()
+                for i in range(0,len(response['weatherParameters'])):
+                    data_vars[str(response['weatherParameters'][i])]=(['time','location'] , dat[i])
+
+                # dataset construction
+                ds=xr.Dataset(
+                    data_vars,
+                    coords={
+                        'time':times,
+                        'location':[str(station_id)],
+                        'lat':[response['locationWeatherData'][0]['latitude']],
+                        'lon':[response['locationWeatherData'][0]['longitude']],
+                        'alt':response['locationWeatherData'][0]['altitude']},
+                    attrs={'weatherRessource':self.name,
+                           'stationId': station_id,
+                           'timeStart': response['timeStart'],
+                           'timeEnd': response['timeEnd'],
+                           'latitude':response['locationWeatherData'][0]['latitude'],
+                           'longitude':response['locationWeatherData'][0]['longitude'],
+                           'altitude':response['locationWeatherData'][0]['altitude'],
+                           'length':response['locationWeatherData'][0]['length'],
+                           'qc':response['locationWeatherData'][0]['qc']}
+                        )
+
+                return ds
             else:
                 return response
-
+                        
         if forcast==True:
             response = self.ipm.get_weatheradapter_forecast(
                 endpoint=self.endpoint(), 
@@ -205,30 +235,55 @@ class WeatherDataSource(object):
                 longitude=longitude
                 )
 
-            daterange= pandas.date_range(
+            times= pandas.date_range(
                 response['timeStart'],
                 response['timeEnd'],
                 freq='H',tz='UTC')
             
-            timeStart = daterange[0].strftime('%Y-%m-%dT%H:%M:%S')
-            timeEnd = daterange[-1].strftime('%Y-%m-%dT%H:%M:%S')
-            if daterange.tz._tzname == 'UTC':
+            timeStart = times[0].strftime('%Y-%m-%dT%H:%M:%S')
+            timeEnd = times[-1].strftime('%Y-%m-%dT%H:%M:%S')
+            if times.tz._tzname == 'UTC':
                 timeStart +='Z'
                 timeEnd += 'Z'
             else:
-                decstr = daterange[0].strftime('%z')
+                decstr = times[0].strftime('%z')
                 decstr = decstr[:-2] + ':' + decstr[-2:]
                 timeStart += decstr
                 timeEnd += decstr
         
-            interval = pandas.Timedelta(daterange.freq).seconds
+            interval = pandas.Timedelta(times.freq).seconds
 
-            if ViewDataFrame ==True:
-                data = {str(var): vals for var, vals in zip(response['weatherParameters'], zip(*response['locationWeatherData'][0]['data']))}
-                df = pandas.DataFrame(data)
-                df.index = daterange
-                # TODO : get all what is needed for intantiating a WeatherData object (meta, units, ...) and retrun it
-                return df
+            if format == "ds":
+                data=np.array(response['locationWeatherData'][0]['data'])
+                
+                dat=[]
+                for i in range(data.shape[1]):
+                    dat.append(data[:,i].reshape(data.shape[0],1))
+                
+                # construction of dict for dataset variable
+                data_vars=dict()
+                for i in range(0,len(response['weatherParameters'])):
+                    data_vars[str(response['weatherParameters'][i])]=(['time','location'] , dat[i])
+
+                # dataset construction
+                ds=xr.Dataset(
+                    data_vars,
+                    coords={
+                        'time':times,
+                        'location':[str(station_id)],
+                        'lat':[response['locationWeatherData'][0]['latitude']],
+                        'lon':[response['locationWeatherData'][0]['longitude']],
+                        'altitude':response['locationWeatherData'][0]['altitude']},
+                    attrs={"weatherRessource":self.name,
+                           'timeStart': response['timeStart'],
+                           'timeEnd': response['timeEnd'],
+                           'latitude':response['locationWeatherData'][0]['latitude'],
+                           'longitude':response['locationWeatherData'][0]['longitude'],
+                           'altitude':response['locationWeatherData'][0]['altitude'],
+                           'length':response['locationWeatherData'][0]['length'],
+                           'qc':response['locationWeatherData'][0]['qc']}
+                        )
+                return ds
             else:
                 return response
 
