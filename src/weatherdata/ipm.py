@@ -177,9 +177,9 @@ class WeatherDataSource(object):
                 decstr = decstr[:-2] + ':' + decstr[-2:]
                 timeStart += decstr
                 timeEnd += decstr
-        
+            
             interval = pandas.Timedelta(times.freq).seconds
-
+            
             response=self.ipm.get_weatheradapter(
                 endpoint=self.endpoint(),
                 credentials=None,
@@ -207,11 +207,11 @@ class WeatherDataSource(object):
                 ds=xr.Dataset(
                     data_vars,
                     coords={
-                        'time':times,
+                        'time':times.values,
                         'location':[str(station_id)],
                         'lat':[response['locationWeatherData'][0]['latitude']],
                         'lon':[response['locationWeatherData'][0]['longitude']],
-                        'alt':response['locationWeatherData'][0]['altitude']},
+                        'alt':[response['locationWeatherData'][0]['altitude']]},
                     attrs={'weatherRessource':self.name,
                            'stationId': station_id,
                            'timeStart': response['timeStart'],
@@ -222,6 +222,22 @@ class WeatherDataSource(object):
                            'length':response['locationWeatherData'][0]['length'],
                            'qc':response['locationWeatherData'][0]['qc']}
                         )
+                
+                # coordinate attribute
+
+                ds.coords['lat'].attrs['name']='latitude'
+                ds.coords['lat'].attrs['unit']='degrees_north'
+                ds.coords['lon'].attrs['name']='longitude'
+                ds.coords['lon'].attrs['unit']='degrees_east'
+                ds.coords['alt'].attrs['name']='altitude'
+                ds.coords['alt'].attrs['unit']='meters'
+
+                #variable attribute
+                param = self.ipm.get_parameter()
+                p={str(item['id']): item for item in param if item['id'] in response['weatherParameters']}
+
+                for el in list(ds.data_vars):
+                    ds.data_vars[el].attrs=p[str(el)]
 
                 return ds
             else:
@@ -235,30 +251,19 @@ class WeatherDataSource(object):
                 longitude=longitude
                 )
 
-            times= pandas.date_range(
-                response['timeStart'],
-                response['timeEnd'],
-                freq='H',tz='UTC')
-            
-            timeStart = times[0].strftime('%Y-%m-%dT%H:%M:%S')
-            timeEnd = times[-1].strftime('%Y-%m-%dT%H:%M:%S')
-            if times.tz._tzname == 'UTC':
-                timeStart +='Z'
-                timeEnd += 'Z'
-            else:
-                decstr = times[0].strftime('%z')
-                decstr = decstr[:-2] + ':' + decstr[-2:]
-                timeStart += decstr
-                timeEnd += decstr
-        
-            interval = pandas.Timedelta(times.freq).seconds
-
             if format == "ds":
                 data=np.array(response['locationWeatherData'][0]['data'])
                 
                 dat=[]
                 for i in range(data.shape[1]):
                     dat.append(data[:,i].reshape(data.shape[0],1))
+                    
+                #time variable
+                times = pandas.date_range(
+                    start=response['timeStart'], 
+                    end=response['timeEnd'], 
+                    freq="H",
+                    name="time")
                 
                 # construction of dict for dataset variable
                 data_vars=dict()
@@ -269,11 +274,11 @@ class WeatherDataSource(object):
                 ds=xr.Dataset(
                     data_vars,
                     coords={
-                        'time':times,
+                        'time':times.values,
                         'location':[str(station_id)],
                         'lat':[response['locationWeatherData'][0]['latitude']],
                         'lon':[response['locationWeatherData'][0]['longitude']],
-                        'altitude':response['locationWeatherData'][0]['altitude']},
+                        'alt':[response['locationWeatherData'][0]['altitude']]},
                     attrs={"weatherRessource":self.name,
                            'timeStart': response['timeStart'],
                            'timeEnd': response['timeEnd'],
@@ -283,6 +288,22 @@ class WeatherDataSource(object):
                            'length':response['locationWeatherData'][0]['length'],
                            'qc':response['locationWeatherData'][0]['qc']}
                         )
+                # coordinate attribute
+
+                ds.coords['lat'].attrs['name']='latitude'
+                ds.coords['lat'].attrs['unit']='degrees_north'
+                ds.coords['lon'].attrs['name']='longitude'
+                ds.coords['lon'].attrs['unit']='degrees_east'
+                ds.coords['alt'].attrs['name']='altitude'
+                ds.coords['alt'].attrs['unit']='meters'
+
+                #variable attribute
+                param = self.ipm.get_parameter()
+                p={str(item['id']): item for item in param if item['id'] in response['weatherParameters']}
+
+                for el in list(ds.data_vars):
+                    ds.data_vars[el].attrs=p[str(el)]
+
                 return ds
             else:
                 return response
