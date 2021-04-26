@@ -194,10 +194,8 @@ class WeatherDataSource(object):
                 #data conversion in numpy array
                 data=np.array(response['locationWeatherData'][0]['data'])
                 
-                dat=[]
-                for i in range(data.shape[1]):
-                    dat.append(data[:,i].reshape(data.shape[0],1))
-                
+                dat=[dat.append(data[:i].reshape(data.shape[0],1)) for i in range(data.shape[1])] 
+
                 # construction of dict for dataset variable
                 data_vars=dict()
                 for i in range(0,len(response['weatherParameters'])):
@@ -254,9 +252,7 @@ class WeatherDataSource(object):
             if format == "ds":
                 data=np.array(response['locationWeatherData'][0]['data'])
                 
-                dat=[]
-                for i in range(data.shape[1]):
-                    dat.append(data[:,i].reshape(data.shape[0],1))
+                dat=[dat.append(data[:i].reshape(data.shape[0],1)) for i in range(data.shape[1])] 
                     
                 #time variable
                 times = pandas.date_range(
