@@ -133,7 +133,7 @@ class WeatherDataSource(object):
     def data(
         self,
         parameters=[1002,3002], 
-        station_id=101104, 
+        station_id=[101104], 
         timeStart='2020-06-12',
         timeEnd='2020-07-03',
         timezone="UTC",
@@ -147,7 +147,7 @@ class WeatherDataSource(object):
         Parameters:
         -----------
             parameters: list of parameters of weatherdata 
-            station_id: (int) station id of weather station 
+            station_id: list of station id of weather station 
             daterange:  a pandas.date_range(start date, end date, freq='H', timezone(tz))
                         https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.date_range.html
             
@@ -180,66 +180,63 @@ class WeatherDataSource(object):
             
             interval = pandas.Timedelta(times.freq).seconds
             
-            response=self.ipm.get_weatheradapter(
-                endpoint=self.endpoint(),
-                credentials=None,
-                weatherStationId=station_id, 
-                timeStart=timeStart, 
-                timeEnd=timeEnd, 
-                interval=interval, 
-                parameters=parameters
-                )
-            
+            responses= {
+                station_id[el]:self.ipm.get_weatheradapter(
+                    endpoint=self.endpoint(),
+                    weatherStationId=station_id[el],
+                    timeStart=timeStart,
+                    timeEnd=timeEnd,
+                    interval=interval,
+                    parameters=parameters) for el in range(len(station_id))}
+
             if format == 'ds':
                 #data conversion in numpy array
-                data=np.array(response['locationWeatherData'][0]['data'])
+                data= {k:np.array(responses[k]['locationWeatherData'][0]['data']) for k in responses.keys()}
                 
-                dat=[dat.append(data[:i].reshape(data.shape[0],1)) for i in range(data.shape[1])] 
+                dat={k:[data[k][:,i].reshape(data[k].shape[0],1) for i in range(data[k].shape[1])] for k in data.keys()}
+                  
 
                 # construction of dict for dataset variable
-                data_vars=dict()
-                for i in range(0,len(response['weatherParameters'])):
-                    data_vars[str(response['weatherParameters'][i])]=(['time','location'] , dat[i])
-
-                # dataset construction
-                ds=xr.Dataset(
-                    data_vars,
-                    coords={
-                        'time':times.values,
-                        'location':[str(station_id)],
-                        'lat':[response['locationWeatherData'][0]['latitude']],
-                        'lon':[response['locationWeatherData'][0]['longitude']],
-                        'alt':[response['locationWeatherData'][0]['altitude']]},
-                    attrs={'weatherRessource':self.name,
-                           'stationId': station_id,
-                           'timeStart': response['timeStart'],
-                           'timeEnd': response['timeEnd'],
-                           'latitude':response['locationWeatherData'][0]['latitude'],
-                           'longitude':response['locationWeatherData'][0]['longitude'],
-                           'altitude':response['locationWeatherData'][0]['altitude'],
-                           'length':response['locationWeatherData'][0]['length'],
-                           'qc':response['locationWeatherData'][0]['qc']}
-                        )
+                data_vars={el:{str(parameters[i]):(['time','location'],dat[el][i]) for i in range(len(parameters))} for el in data.keys()}
                 
-                # coordinate attribute
+                # construction dictionnaire coordonnée
+                coords={el:{'time':times.values,
+                            'location':([str(el)]),
+                            'lat':[responses[el]['locationWeatherData'][0]['latitude']],
+                            'lon':[responses[el]['locationWeatherData'][0]['longitude']],
+                            'alt':[responses[el]['locationWeatherData'][0]['altitude']]} for el in data.keys()}
+                
+                # list de dss
+                list_ds=[xr.Dataset(data_vars[el], coords=coords[el]) for el in data_vars.keys()]
 
+                #merge ds
+                ds=xr.merge(xr.broadcast(*list_ds))
+
+                #coordinates attributes
+                ds.coords['location'].attrs['name']= 'WeatherStationId'
                 ds.coords['lat'].attrs['name']='latitude'
                 ds.coords['lat'].attrs['unit']='degrees_north'
                 ds.coords['lon'].attrs['name']='longitude'
                 ds.coords['lon'].attrs['unit']='degrees_east'
                 ds.coords['alt'].attrs['name']='altitude'
                 ds.coords['alt'].attrs['unit']='meters'
-
+    
                 #variable attribute
                 param = self.ipm.get_parameter()
-                p={str(item['id']): item for item in param if item['id'] in response['weatherParameters']}
-
+                p={str(item['id']): item for item in param if item['id'] in parameters}
+    
                 for el in list(ds.data_vars):
                     ds.data_vars[el].attrs=p[str(el)]
 
+                ds.attrs['weatherRessource']=self.name
+                ds.attrs['weatherStationId']=station_id
+                ds.attrs['timeStart']=timeStart
+                ds.attrs['timeEnd']=timeEnd
+                ds.attrs['parameters']=parameters
+                
                 return ds
             else:
-                return response
+                return responses
                         
         if forcast==True:
             response = self.ipm.get_weatheradapter_forecast(
@@ -252,8 +249,11 @@ class WeatherDataSource(object):
             if format == "ds":
                 data=np.array(response['locationWeatherData'][0]['data'])
                 
-                dat=[dat.append(data[:i].reshape(data.shape[0],1)) for i in range(data.shape[1])] 
-                    
+                dat=[]
+                for i in range(data.shape[1]):
+                    dat.append(data[:,i].reshape(data.shape[0],1))
+                 
+
                 #time variable
                 times = pandas.date_range(
                     start=response['timeStart'], 
@@ -265,7 +265,7 @@ class WeatherDataSource(object):
                 data_vars=dict()
                 for i in range(0,len(response['weatherParameters'])):
                     data_vars[str(response['weatherParameters'][i])]=(['time','location'] , dat[i])
-
+                
                 # dataset construction
                 ds=xr.Dataset(
                     data_vars,
