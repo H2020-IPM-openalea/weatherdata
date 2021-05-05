@@ -56,18 +56,23 @@ class WeatherDataSource(object):
         coord = dict()
 
         for names in values:
-            if 'features' in values[names]:
+            if 'features' in values[names] and values[names]['features']!=[]:
                 station_ids[names]=[values[names]['features'][item]['properties'] for item in range(len(values[names]['features']))]
                 coord[names]=[values[names]['features'][item]['geometry'] for item in range(len(values[names]['features']))]
             else:
                 station_ids[names]= 'no stations for this ressources'
                 coord[names]= 'no stations for this ressources'
+        
+        if station_ids[self.name]=='no stations for this ressources':
+            data= station_ids[self.name]
 
-        df_station_ids = pandas.DataFrame(station_ids[self.name])
-        df_coord = pandas.DataFrame(coord[self.name])
-        df = [df_station_ids,df_coord]
-        data = pandas.concat(df,axis=1)
-        data = data[["name","id","coordinates"]]
+        else:
+            df_station_ids = pandas.DataFrame(station_ids[self.name])
+            df_coord = pandas.DataFrame(coord[self.name])
+            df = [df_station_ids,df_coord]
+            data = pandas.concat(df,axis=1)
+            data = data[["name","id","coordinates"]]
+        
         return data
 
     def parameters(self):
@@ -322,4 +327,4 @@ class WeatherDataHub(object):
         if name in keys:
             return WeatherDataSource(name)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError("the resource is unknown or the name of the resource is misspelled")
